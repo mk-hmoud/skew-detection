@@ -4,7 +4,10 @@
 #include <cmath>
 #include <vector>
 #include <filesystem>
+#include <filesystem>
 #include "image.h"
+
+namespace fs = std::filesystem;
 
 namespace fs = std::filesystem;
 
@@ -281,6 +284,8 @@ int main()
             processed_count++;
         }
     }
+
+    std::cout << "Successfuly processed " << processed_count << " images." << std::endl;
 
     return 0;
 }
