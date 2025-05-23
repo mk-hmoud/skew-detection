@@ -16,10 +16,10 @@ set(SOURCES
     src/main.cpp
 )
 
-add_executable(skew_corrector ${SOURCES})
+add_executable(skew_correction ${SOURCES})
 
-target_link_libraries(skew_corrector ${PNG_LIBRARIES})
+target_link_libraries(skew_correction ${PNG_LIBRARIES})
 
 if(UNIX)
-    target_link_libraries(skew_corrector m)
+    target_link_libraries(skew_correction m)
 endif()

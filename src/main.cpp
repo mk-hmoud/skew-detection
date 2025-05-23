@@ -3,7 +3,10 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
+#include <filesystem>
 #include "image.h"
+
+namespace fs = std::filesystem;
 
 GrayscaleImage sobel_filter(const GrayscaleImage &img, std::vector<std::vector<bool>> &edges)
 {
@@ -221,21 +224,28 @@ GrayscaleImage rotate_image_bicubic(const GrayscaleImage &src, double angle)
     return dst;
 }
 
-int main()
+void process_image(const std::string &input_path, const std::string &base_filename)
 {
+    std::cout << "\n=== Processing: " << input_path << " ===" << std::endl;
+
     GrayscaleImage input;
-    input.Load("../input/skew-origin.png");
+    input.Load(input_path);
 
     std::vector<std::vector<bool>> edges;
     GrayscaleImage edge_detected_img = sobel_filter(input, edges);
 
+    std::string edge_filename = "../output/" + base_filename + "-edges.png";
+    edge_detected_img.Save(edge_filename);
+
     double skew_rad = estimate_skew_hough(edges);
     double skew_deg = skew_rad * 180.0 / M_PI;
 
-    std::cout << "Estimated skew: "
-              << skew_deg << "° (" << skew_rad << " rad)\n";
+    std::cout << "Estimated skew: " << skew_deg << "° (" << skew_rad << " rad)" << std::endl;
 
     GrayscaleImage deskewed = rotate_image_bicubic(input, skew_rad);
+
+    std::string corrected_filename = "../output/" + base_filename + "-corrected.png";
+    deskewed.Save(corrected_filename);
 
     std::vector<std::vector<bool>> edges_deskewed;
     GrayscaleImage edge_detected_img_deskewed = sobel_filter(deskewed, edges_deskewed);
@@ -243,11 +253,34 @@ int main()
     double skew_rad_after_deskew = estimate_skew_hough(edges_deskewed);
     double skew_deg_after_deskew = skew_rad_after_deskew * 180.0 / M_PI;
 
-    std::cout << "Skew after deskewing: "
-              << skew_deg_after_deskew << "° (" << skew_rad_after_deskew << " rad)\n";
+    std::cout << "Skew after correction: " << skew_deg_after_deskew << "° (" << skew_rad_after_deskew << " rad)" << std::endl;
 
-    edge_detected_img.Save("../output/edge-detected-document.png");
-    deskewed.Save("../output/deskewed.png");
+    std::string edge_corrected_filename = "../output/" + base_filename + "-corrected-edges.png";
+    edge_detected_img_deskewed.Save(edge_corrected_filename);
+}
+
+int main()
+{
+    fs::create_directories("../output");
+
+    std::string input_dir = "../input";
+
+    std::cout << "Processing all images in " << input_dir << "..." << std::endl;
+    int processed_count = 0;
+
+    for (const auto &entry : fs::directory_iterator(input_dir))
+    {
+        if (!entry.is_regular_file())
+            continue;
+
+        auto ext = entry.path().extension().string();
+        if (ext == ".png")
+        {
+            std::string filename = entry.path().filename().string();
+            process_image(entry.path().string(), filename);
+            processed_count++;
+        }
+    }
 
     return 0;
 }
