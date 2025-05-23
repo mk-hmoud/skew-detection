@@ -2,6 +2,7 @@
 #include <array>
 #include <algorithm>
 #include <cmath>
+#include <vector>
 #include "image.h"
 
 GrayscaleImage sobel_filter(const GrayscaleImage &img, std::vector<std::vector<bool>> &edges)
@@ -41,8 +42,8 @@ GrayscaleImage sobel_filter(const GrayscaleImage &img, std::vector<std::vector<b
 }
 
 double estimate_skew_hough(const std::vector<std::vector<bool>> &edges,
-                           double max_angle = M_PI / 36,
-                           double angle_step = M_PI / 1800)
+                           double max_angle = M_PI / 18,
+                           double angle_step = M_PI / 3600)
 {
     int h = edges.size(), w = edges[0].size();
     int n_t = int((2 * max_angle) / angle_step) + 1;
@@ -56,38 +57,108 @@ double estimate_skew_hough(const std::vector<std::vector<bool>> &edges,
 
     std::vector<std::vector<int>> acc(n_r, std::vector<int>(n_t, 0));
 
+    double center_y = h * 0.5;
     for (int y = 0; y < h; ++y)
     {
         for (int x = 0; x < w; ++x)
         {
+            // non voting pixels
             if (!edges[y][x])
                 continue;
+
+            // more weight (double) given to edges in the  middle
+            double weight = 1.0;
+            double dist_from_center = std::abs(y - center_y) / (h * 0.5);
+            if (dist_from_center < 0.5)
+            {
+                weight = 2.0;
+            }
+
+            // for each theta (in our grid) find the corresponding p
             for (int t = 0; t < n_t; ++t)
             {
                 double rho = x * std::cos(thetas[t]) + y * std::sin(thetas[t]);
                 int r = int(std::round(rho)) + rho_max;
+                // if the combination of r,t is in our range, then cast a vote.
                 if (r >= 0 && r < n_r)
-                    acc[r][t]++;
+                    acc[r][t] += static_cast<int>(weight);
             }
         }
     }
 
-    int best_r = 0, best_t = 0, best_votes = -1;
-    for (int r = 0; r < n_r; ++r)
+    std::vector<std::pair<int, std::pair<int, int>>> peaks;
+
+    for (int r = 1; r < n_r - 1; ++r)
     {
-        for (int t = 0; t < n_t; ++t)
+        for (int t = 1; t < n_t - 1; ++t)
         {
-            if (acc[r][t] > best_votes)
+            int votes = acc[r][t];
+            if (votes > 10) // minimum threshold
             {
-                best_votes = acc[r][t];
-                best_r = r;
-                best_t = t;
+                // is peak? or in other words, is local maximum?
+                // we compare with the 8 immediate neighbors
+                bool is_peak = true;
+                for (int dr = -1; dr <= 1 && is_peak; ++dr)
+                {
+                    for (int dt = -1; dt <= 1 && is_peak; ++dt)
+                    {
+                        if (dr == 0 && dt == 0)
+                            continue;
+                        if (acc[r + dr][t + dt] >= votes)
+                        {
+                            is_peak = false;
+                        }
+                    }
+                }
+                if (is_peak)
+                {
+                    // found a peak, record it.
+                    peaks.push_back({votes, {r, t}});
+                }
             }
         }
     }
 
-    double skew = thetas[best_t];
-    return skew;
+    if (peaks.empty())
+    {
+        // fallback to global maximum
+        int best_r = 0, best_t = 0, best_votes = -1;
+        for (int r = 0; r < n_r; ++r)
+        {
+            for (int t = 0; t < n_t; ++t)
+            {
+                if (acc[r][t] > best_votes)
+                {
+                    best_votes = acc[r][t];
+                    best_r = r;
+                    best_t = t;
+                }
+            }
+        }
+        return thetas[best_t];
+    }
+    // else, we can choose a heuristic that might result in better theta calculation.
+
+    // votes sorting in descending order
+    std::sort(peaks.begin(), peaks.end(), std::greater<>());
+
+    // heurisitc #1
+    // consider the peak with the smallest absolute angle (closest to 0 degrees)
+    // or in other words, closest to horizontal.
+    // to be the best.
+    double best_angle = thetas[peaks[0].second.second];
+    for (const auto &peak : peaks)
+    {
+        // we're constraining to peaks that atleast have a vote count 70%
+        // of the top vote count
+        double angle = thetas[peak.second.second];
+        if (std::abs(angle) < std::abs(best_angle) && peak.first > peaks[0].first * 0.7)
+        {
+            best_angle = angle;
+        }
+    }
+
+    return best_angle;
 }
 
 double cubic_interpolate(double p0, double p1, double p2, double p3, double t)
@@ -113,7 +184,7 @@ GrayscaleImage rotate_image_bicubic(const GrayscaleImage &src, double angle)
     auto safe_get_pixel = [&](int x, int y) -> double
     {
         if (x < 0 || x >= w || y < 0 || y >= h)
-            return 255.0;
+            return 0;
         return static_cast<double>(src(x, y));
     };
 
@@ -144,7 +215,7 @@ GrayscaleImage rotate_image_bicubic(const GrayscaleImage &src, double angle)
             }
 
             double result = cubic_interpolate(rows[0], rows[1], rows[2], rows[3], fy);
-            dst(x2, y2) = static_cast<unsigned char>(std::clamp(result, 0.0, 255.0));
+            dst(x2, y2) = static_cast<unsigned char>(car(result, 255.0));
         }
     }
     return dst;
@@ -164,7 +235,7 @@ int main()
     std::cout << "Estimated skew: "
               << skew_deg << "° (" << skew_rad << " rad)\n";
 
-    GrayscaleImage deskewed = rotate_image_bicubic(input, -skew_rad);
+    GrayscaleImage deskewed = rotate_image_bicubic(input, skew_rad);
 
     std::vector<std::vector<bool>> edges_deskewed;
     GrayscaleImage edge_detected_img_deskewed = sobel_filter(deskewed, edges_deskewed);

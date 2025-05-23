@@ -14,7 +14,6 @@ include_directories(${CMAKE_SOURCE_DIR}/lib)
 
 set(SOURCES
     src/main.cpp
-    src/SkewCorrector.cpp
 )
 
 add_executable(skew_corrector ${SOURCES})
