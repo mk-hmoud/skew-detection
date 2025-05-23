@@ -1,11 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
 BUILD_DIR="../build"
 BIN_DIR="../bin"
-EXECUTABLE="$BIN_DIR/skew_corrector"
+EXECUTABLE="$BIN_DIR/skew_correction"
 PROJECT_ROOT="$(dirname "$(realpath "$0")")/.."
 
-
-OUTPUT_DIR=$(dirname "$OUTPUT_IMAGE")
-mkdir -p "$OUTPUT_DIR"
 
 build_project() {
     mkdir -p "$BUILD_DIR"
@@ -18,4 +18,8 @@ build_project() {
 
 build_project
 
-"$EXECUTABLE"
+if [[ -x "$EXECUTABLE" ]]; then
+    "$EXECUTABLE"
+else
+    exit 1
+fi
