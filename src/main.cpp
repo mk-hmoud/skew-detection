@@ -1,5 +1,7 @@
 #include <iostream>
 #include <array>
+#include <cstdint>
+#include <numeric>
 #include "image.h"
 
 GrayscaleImage sobel_filter(const GrayscaleImage &img)
@@ -36,12 +38,68 @@ GrayscaleImage sobel_filter(const GrayscaleImage &img)
     return edge_detected_img;
 }
 
+GrayscaleImage gaussian_blur(const GrayscaleImage &img,
+                             int k,
+                             double std_deviation = 0.0)
+{
+    int width = img.GetWidth();
+    int height = img.GetHeight();
+
+    if (std_deviation <= 0.0)
+        std_deviation = 0.3 * ((k - 1) * 0.5 - 1) + 0.8;
+
+    int r = k / 2;
+    std::vector<double> kernel(k);
+    for (int i = -r; i <= r; ++i)
+    {
+        kernel[i + r] = std::exp(-(i * i) / (2 * std_deviation * std_deviation));
+    }
+    double sum = std::accumulate(kernel.begin(), kernel.end(), 0.0);
+    for (double &value : kernel)
+        value /= sum;
+
+    GrayscaleImage temp(width, height);
+    for (int y = 0; y < height; y++)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            double accumulator = 0.0;
+            for (int i = -r; i <= r; i++)
+            {
+                int xx = x + i;
+                xx = car(xx, width - 1);
+                accumulator += kernel[i + r] * img(xx, y);
+            }
+            temp(x, y) = uint8_t(std::round(accumulator));
+        }
+    }
+
+    GrayscaleImage blurred_img(width, height);
+    for (int y = 0; y < height; y++)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            double accumulator = 0.0;
+            for (int j = -r; j <= r; j++)
+            {
+                int yy = y + j;
+                yy = car(yy, height - 1);
+                accumulator += kernel[j + r] * temp(x, yy);
+            }
+            blurred_img(x, y) = uint8_t(std::round(accumulator));
+        }
+    }
+
+    return blurred_img;
+}
+
 int main()
 {
     GrayscaleImage input;
     input.Load("../input/skew-origin.png");
-    GrayscaleImage output = sobel_filter(input);
 
-    output.Save("../output/edge-detected-document.png");
+    GrayscaleImage output = gaussian_blur(input, 5);
+
+    output.Save("../output/blur.png");
     return 0;
 }
