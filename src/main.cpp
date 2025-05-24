@@ -4,10 +4,7 @@
 #include <cmath>
 #include <vector>
 #include <filesystem>
-#include <filesystem>
 #include "image.h"
-
-namespace fs = std::filesystem;
 
 namespace fs = std::filesystem;
 
@@ -48,7 +45,7 @@ GrayscaleImage sobel_filter(const GrayscaleImage &img, std::vector<std::vector<b
 }
 
 double estimate_skew_hough(const std::vector<std::vector<bool>> &edges,
-                           double max_angle = M_PI / 18,
+                           double max_angle = M_PI / 6,
                            double angle_step = M_PI / 3600)
 {
     int h = edges.size(), w = edges[0].size();
@@ -268,7 +265,7 @@ int main()
 
     std::string input_dir = "../input";
 
-    std::cout << "Processing all images in " << input_dir << "..." << std::endl;
+    std::cout << "\nProcessing all images in " << input_dir << "..." << std::endl;
     int processed_count = 0;
 
     for (const auto &entry : fs::directory_iterator(input_dir))
@@ -285,7 +282,8 @@ int main()
         }
     }
 
-    std::cout << "Successfuly processed " << processed_count << " images." << std::endl;
+    std::cout << "\nSuccessfuly processed " << processed_count << " images.\n"
+              << std::endl;
 
     return 0;
 }
